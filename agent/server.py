@@ -214,15 +214,16 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
     print(f"""
 ╔══════════════════════════════════════════════════╗
 ║   AI职业规划与求职Agent — Server v2.0          ║
-║   后端: http://localhost:5000                     ║
+║   后端: http://0.0.0.0:{port:<5}                   ║
 ║   API:  {'DeepSeek已连接' if llm.is_configured else '模拟模式（请配置.env）':<40} ║
 ║   按 Ctrl+C 停止                                 ║
 ╚══════════════════════════════════════════════════╝
 """)
-    httpd = HTTPServer(('0.0.0.0', 5000), Handler)
+    httpd = HTTPServer(('0.0.0.0', port), Handler)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
