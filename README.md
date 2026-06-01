@@ -1,5 +1,7 @@
 # AI 职业规划与求职 Agent
 
+<div align="center"><img src="qrcode.png" width="160" alt="GitHub 仓库二维码"></div>
+
 基于双 LLM 架构的智能职业规划助手，提供职业咨询、技能迁移分析、简历优化、面试准备、Offer 对比等服务。
 
 ## 架构
