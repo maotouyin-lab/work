@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: career-agent
+    runtime: python
+    buildCommand: pip install -r agent/requirements.txt
+    startCommand: python agent/server.py
+    envVars:
+      - key: DASHSCOPE_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
