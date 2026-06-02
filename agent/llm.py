@@ -6,8 +6,14 @@ LLM Client — DeepSeek API integration (OpenAI-compatible).
 2. 成本追踪内置到每次调用
 3. 分层Prompt在客户端层面组装
 """
-import os, time, json
+import os, sys, time, json
 from dataclasses import dataclass, field
+
+# 优先使用 vendored 依赖（FC 函数计算环境无需 pip install）
+_deps_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'deps')
+if os.path.isdir(_deps_dir):
+    sys.path.insert(0, _deps_dir)
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
