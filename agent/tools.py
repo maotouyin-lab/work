@@ -18,28 +18,7 @@ from cost import estimate_tokens
 
 
 # ═══════════════════════════════════════════════
-# Tool 1: User Profile Parser (uses AI — needs semantic understanding)
-# ═══════════════════════════════════════════════
-
-def parse_user_profile(raw_input: str) -> dict:
-    """
-    从用户自由文本输入中提取结构化档案。
-    uses_ai: True — 需要语义理解能力
-    """
-    # 在实际部署中，这里调用LLM做信息提取
-    # 本demo返回预置数据
-    return {
-        "token_estimate": estimate_tokens(raw_input) + 500,  # input + output
-        "extracted": {
-            "skills_detected": True,
-            "years_confirmed": True,
-            "target_clarity": "clear" if "产品" in raw_input else "unclear"
-        }
-    }
-
-
-# ═══════════════════════════════════════════════
-# Tool 2: Skill Graph Query (NO AI — pure structured API)
+# Tool 1: Skill Graph Query (NO AI — pure structured API)
 # ═══════════════════════════════════════════════
 
 def query_skill_graph(skills: list[str], target_role: str) -> dict:
@@ -111,107 +90,7 @@ def query_job_market(target_role: str, city: str = None) -> dict:
 
 
 # ═══════════════════════════════════════════════
-# Tool 4: Resume Analyzer (uses AI — needs semantic parsing)
-# ═══════════════════════════════════════════════
-
-def analyze_resume(resume_text: str) -> dict:
-    """
-    解析简历文本，结构化提取信息。
-    uses_ai: True — 简历是自由文本，需要语义理解和信息提取
-    """
-    return {
-        "token_estimate": estimate_tokens(resume_text) + 800,
-        "parsed": {
-            "years_of_experience": "3年",
-            "current_role": "运营专员",
-            "education_level": "本科",
-            "key_achievements": [
-                "季度GMV提升15%",
-                "搭建200万用户标签体系",
-                "公众号矩阵50万粉丝"
-            ],
-            "skill_keywords": ["SQL", "数据分析", "用户运营", "项目管理", "Python基础"]
-        }
-    }
-
-
-# ═══════════════════════════════════════════════
-# Tool 5: JD Parser (uses AI — needs semantic understanding)
-# ═══════════════════════════════════════════════
-
-def parse_jd(jd_text: str) -> dict:
-    """
-    解析岗位JD，提取核心要求和加分项。
-    uses_ai: True — JD是自由文本，需要结构化提取
-    """
-    return {
-        "token_estimate": estimate_tokens(jd_text) + 600,
-        "parsed": {
-            "role": "产品经理",
-            "level": "中级",
-            "must_have": ["3年经验", "SQL数据分析", "用户研究", "PRD和原型设计"],
-            "nice_to_have": ["运营背景", "技术理解", "AI产品经验"],
-            "salary_range": "20K-35K · 14薪"
-        }
-    }
-
-
-# ═══════════════════════════════════════════════
-# Tool 6: Interview Simulator (uses AI — needs generation capability)
-# ═══════════════════════════════════════════════
-
-def generate_interview_questions(user_profile: UserProfile, target_jd: str) -> dict:
-    """
-    基于用户背景和JD生成个性化面试题。
-    uses_ai: True — 需要生成能力
-    """
-    questions = [
-        {
-            "type": "背景深挖",
-            "question": "你提到用SQL做用户分层运营，具体是怎么做的？分层后针对不同用户采取了什么差异化策略？",
-            "intent": "验证数据分析能力的深度——不是用过SQL就叫会数据分析",
-            "difficulty": "中等",
-            "probability": "90%"
-        },
-        {
-            "type": "背景深挖",
-            "question": "你从0到1搭建了200万用户的标签体系，过程中最大的挑战是什么？",
-            "intent": "看项目复杂度+解决问题的方式",
-            "difficulty": "中等",
-            "probability": "80%"
-        },
-        {
-            "type": "能力验证",
-            "question": "作为产品经理，如果研发说'这个需求做不了'，你怎么办？请用你过去的实际经历举例。",
-            "intent": "验证跨部门沟通和推动力——运营转PM的核心考察点",
-            "difficulty": "中高",
-            "probability": "85%"
-        },
-        {
-            "type": "能力验证",
-            "question": "给你一个电商后台的退货率下降10%的目标，你作为PM会怎么拆解和推进？",
-            "intent": "场景题——看产品思维和分析框架，不是要正确答案",
-            "difficulty": "高",
-            "probability": "70%"
-        },
-        {
-            "type": "转行动机",
-            "question": "运营做得好好的，为什么要转产品？你了解过产品经理日常工作的哪些部分？",
-            "intent": "验证转行动机是否经过深思熟虑，而非跟风",
-            "difficulty": "中等",
-            "probability": "95%"
-        },
-    ]
-
-    return {
-        "token_estimate": 1500,  # output tokens for question generation
-        "questions": questions,
-        "total_questions": len(questions)
-    }
-
-
-# ═══════════════════════════════════════════════
-# Tool 7: Resume File Parser (NO AI — pure Python extraction)
+# Tool 4: Resume File Parser (NO AI — pure Python extraction)
 # ═══════════════════════════════════════════════
 
 def _find_matching_bb(b: bytes, start: int) -> int:
@@ -431,39 +310,19 @@ def parse_resume_file(file_bytes: bytes, filename: str) -> dict:
 # ── Tool Registry ──
 
 TOOL_REGISTRY = {
-    "parse_user_profile": {
-        "function": parse_user_profile,
-        "uses_ai": True,
-        "description": "语义解析用户自由文本输入，提取结构化档案"
-    },
     "query_skill_graph": {
         "function": query_skill_graph,
-        "uses_ai": False,  # ⭐ 不走AI
+        "uses_ai": False,
         "description": "查询技能图谱数据库，获取技能可迁移性数据（确定性查询）"
     },
     "query_job_market": {
         "function": query_job_market,
-        "uses_ai": False,  # ⭐ 不走AI
+        "uses_ai": False,
         "description": "查询招聘市场数据库，获取薪资/需求趋势（确定性查询）"
-    },
-    "analyze_resume": {
-        "function": analyze_resume,
-        "uses_ai": True,
-        "description": "语义解析简历文本，结构化提取经历和技能"
-    },
-    "parse_jd": {
-        "function": parse_jd,
-        "uses_ai": True,
-        "description": "语义解析JD文本，提取核心要求和加分项"
-    },
-    "generate_interview_questions": {
-        "function": generate_interview_questions,
-        "uses_ai": True,
-        "description": "基于用户背景+JD生成个性化面试模拟题"
     },
     "parse_resume_file": {
         "function": parse_resume_file,
-        "uses_ai": False,  # ⭐ 不走AI
+        "uses_ai": False,
         "description": "纯Python标准库解析PDF/DOCX/TXT简历文件（零依赖）"
     },
 }

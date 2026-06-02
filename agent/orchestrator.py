@@ -24,7 +24,8 @@ from prompts import (
     SAFETY_SYSTEM_PROMPT, ROLE_PROMPT,
     get_profile_extraction_prompt, get_intent_recognition_prompt,
     get_skill_transfer_prompt, get_interview_prep_prompt,
-    get_3month_plan_prompt, get_resume_optimize_prompt
+    get_3month_plan_prompt, get_resume_optimize_prompt,
+    get_emotional_support_prompt
 )
 
 
@@ -103,6 +104,31 @@ class CareerAgent:
             current_msg = message or ""
             has_history = False
 
+        # 简短招呼检测：纯打招呼/问好消息跳过完整流程，返回温暖简短回应
+        greeting_patterns = ['你好', 'hi', 'hello', '嗨', '在吗', '在么', '您好', 'hey', '早上好', '下午好', '晚上好']
+        if current_msg and not has_history and flow == "skill_transfer":
+            msg_clean = current_msg.strip().lower()
+            if any(msg_clean == g or msg_clean.startswith(g) for g in greeting_patterns):
+                greeting_output = (
+                    "你好！我是你的AI职业规划助手。\n\n"
+                    "随便聊聊就行——告诉我你目前在做什么工作、会哪些技能、想往哪个方向发展，或者直接说「我很迷茫」，我都会帮你分析。\n\n"
+                    "不用一次性说全，想到什么说什么就好。"
+                )
+                s = self.cost.current_session
+                return AgentResult(
+                    user_profile=UserProfile(name="用户", current_role="", years_of_experience=0,
+                        industry="", skills=[], education="", salary_range="", target_role=None),
+                    steps=[AgentStep(name="招呼识别", uses_ai=False, input_tokens=0, output_tokens=0,
+                        duration_ms=0, summary="识别为简短招呼，返回欢迎语")],
+                    final_output=greeting_output,
+                    safety_result=SafetyLevel.PASS,
+                    cost_summary={"total_steps": 1, "ai_steps": 0, "non_ai_steps": 1,
+                        "input_tokens": 0, "output_tokens": 0, "cost_rmb": 0.0,
+                        "api_configured": self.llm.is_configured, "model": self.llm.model,
+                        "total_duration_ms": int((time.time() - t_start) * 1000)},
+                    extracted_profile={}
+                )
+
         if self.verbose:
             print(f"\n{'='*50}")
             print(f"  Agent启动 | 用户: {user.name if user else '对话提取'} | 模式: {flow}")
@@ -135,7 +161,8 @@ class CareerAgent:
                 education=extracted.get("education") or "",
                 salary_range="",
                 target_role=extracted.get("target_role") or None,
-                priorities=extracted.get("priorities") or []
+                priorities=extracted.get("priorities") or [],
+                emotional_state=extracted.get("emotional_state") or "neutral"
             )
 
             step0 = AgentStep(
@@ -173,7 +200,7 @@ class CareerAgent:
             intent = self._parse_intent(resp.content)
 
             primary = intent.get("primary", intent.get("primary_intent", flow))
-            if not user.target_role and primary != "interview_prep":
+            if not user.target_role and primary not in ("interview_prep", "emotional_support"):
                 primary = "career_planning"
 
             intent_label = {"career_planning":"职业规划分析", "skill_analysis":"技能迁移分析", "job_search":"求职市场查询", "emotional_support":"情绪疏导+方向探索", "interview_prep":"面试准备"}
@@ -192,50 +219,23 @@ class CareerAgent:
                       f"({resp.input_tokens}+{resp.output_tokens} tokens, {resp.duration_ms:.0f}ms)")
 
         # ═══════════════════════════════════════
-        # 信息充分度检查：画像太模糊就追问，不硬跑后续步骤
-        # 简历优化模式跳过——简历原文自带完整信息，不需要从对话提取画像
+        # 信息充分度检查：仅标记，不拦截。
+        # 让 LLM 基于已有信息做限定分析 + 标注不确定性 + 自然追问。
+        # — 面试展示重点：体验优先，不机械拒绝用户 —
         # ═══════════════════════════════════════
-        if current_msg and self._profile_insufficient(user) and flow != "resume_optimize":
-            t_check = time.time()
-            followup = self._generate_followup(user, history_text)
-            step_check = AgentStep(
-                name="信息确认", uses_ai=True,
-                input_tokens=followup.get("in_tokens", 0),
-                output_tokens=followup.get("out_tokens", 0),
-                duration_ms=(time.time() - t_check) * 1000,
-                summary="用户信息不足，生成追问",
-                detail={"缺失字段": followup.get("missing", []), "追问": followup.get("question", "")}
-            )
-            steps.append(step_check)
-            self.cost.record_step(step_check.name,
-                followup.get("in_tokens", 0), followup.get("out_tokens", 0), True, step_check.duration_ms)
-
-            final_output = followup.get("question", "")
-            s = self.cost.current_session
-            return AgentResult(
-                user_profile=user,
-                steps=steps,
-                final_output=final_output,
-                safety_result=SafetyLevel.PASS,
-                cost_summary={
-                    "total_steps": len(s.steps),
-                    "ai_steps": s.ai_step_count,
-                    "non_ai_steps": s.non_ai_step_count,
-                    "input_tokens": s.total_input_tokens,
-                    "output_tokens": s.total_output_tokens,
-                    "cost_rmb": s.total_cost_rmb,
-                    "api_configured": self.llm.is_configured,
-                    "model": self.llm.model,
-                    "total_duration_ms": int((time.time() - t_start) * 1000)
-                },
-                extracted_profile=extracted_profile
-            )
+        profile_incomplete = current_msg and self._profile_insufficient(user) and flow != "resume_optimize"
+        if profile_incomplete:
+            user_insufficient_marker = f"\n\n[提示：用户画像不完整，缺少关键信息。请基于已有信息做限定分析，明确标注不确定项，并在分析末尾自然追问缺失信息。]"
+        else:
+            user_insufficient_marker = ""
 
         # ═══════════════════════════════════════
         # Step 2 & 3: 数据查询（不走LLM！并行执行）
-        # 简历优化流程不需要技能/市场数据，跳过
+        # 简历优化、情绪支持不需要技能/市场数据，跳过
         # ═══════════════════════════════════════
-        if flow != "resume_optimize":
+        is_emotional = (flow == "emotional_support" or
+                        user.emotional_state in ("anxious", "confused"))
+        if flow != "resume_optimize" and not is_emotional:
             t2 = time.time()
             target_for_search = user.target_role or "产品经理"
             skill_data = TOOL_REGISTRY["query_skill_graph"]["function"](
@@ -275,7 +275,17 @@ class CareerAgent:
         # ═══════════════════════════════════════
         t4 = time.time()
 
-        if flow == "interview_prep":
+        # 情绪支持模式：用户焦虑/迷茫/情绪化 → 先接住情绪，再做轻量探索
+        if is_emotional:
+            task_prompt = get_emotional_support_prompt(user, history_text)
+            resp4 = self.llm.chat_with_layered_prompts(
+                user_message=f"对话历史：\n{history_text}\n\n用户{user.name}情绪状态需要关注，请先共情再分析",
+                safety_prompt=SAFETY_SYSTEM_PROMPT,
+                role_prompt=ROLE_PROMPT,
+                task_prompt=task_prompt,
+                purpose="emotional_support"
+            )
+        elif flow == "interview_prep":
             task_prompt = get_interview_prep_prompt(
                 user,
                 JD_PRODUCT_MANAGER if user.target_role == "产品经理" else JD_AI_PM
@@ -321,7 +331,7 @@ class CareerAgent:
         else:
             task_prompt = get_skill_transfer_prompt(user, skill_data, market_data)
             resp4 = self.llm.chat_with_layered_prompts(
-                user_message=f"对话历史：\n{history_text}\n\n请基于以上对话历史，为{user.name}（{user.current_role}，想转{user.target_role or '探索新方向'}）做分析",
+                user_message=f"对话历史：\n{history_text}\n\n请基于以上对话历史，为{user.name}（{user.current_role}，想转{user.target_role or '探索新方向'}）做分析{user_insufficient_marker}",
                 safety_prompt=SAFETY_SYSTEM_PROMPT,
                 role_prompt=ROLE_PROMPT,
                 task_prompt=task_prompt,
@@ -367,6 +377,10 @@ class CareerAgent:
                 for risk in llm_safety.get("risks", []):
                     if risk not in safety_result.warnings:
                         safety_result.warnings.append(f"[LLM安全审查] {risk}")
+
+        # 简历优化模式：追加 AI 生成内容提醒
+        if flow == "resume_optimize":
+            safety_result.warnings.append("简历经AI优化，所有量化数字和具体成果请以原始简历为准，建议发送前逐条核对")
         else:
             resp5 = LLMResponse(content="blocked", model="local", input_tokens=0, output_tokens=0, duration_ms=0)
 
@@ -432,7 +446,7 @@ class CareerAgent:
         has_role = bool(user.current_role and user.current_role.strip())
         has_skills = bool(user.skills and any(s.strip() for s in user.skills))
         has_target = bool(user.target_role and str(user.target_role).strip())
-        has_years = bool(user.years_of_experience and user.years_of_experience > 0)
+        has_years = True  # years=0 is valid (fresh grad); info comes from role + skills
         # 方向来自具体的目标岗位（不含"未知"等占位符），而非模糊的优先级
         has_direction = has_target or (
             user.priorities and any(
@@ -447,43 +461,6 @@ class CareerAgent:
         if not has_skills and not has_direction:
             return True
         return False
-
-    def _generate_followup(self, user: UserProfile, history: str) -> dict:
-        """信息不足时，用 LLM 基于对话历史生成自然追问。"""
-        missing_parts = []
-        if not user.current_role or not user.current_role.strip():
-            missing_parts.append("当前岗位/工作内容")
-        if not user.skills or not any(s.strip() for s in user.skills):
-            missing_parts.append("掌握的技能")
-        if not user.target_role:
-            missing_parts.append("想发展的方向")
-        if not user.years_of_experience or user.years_of_experience <= 0:
-            missing_parts.append("工作年限")
-
-        prompt = f"""以下是与用户的完整对话：
-
-{history}
-
-从上述对话中没有提取到足够的信息来进行职业规划分析。缺少的信息包括：{', '.join(missing_parts)}。
-
-请用友好、自然的语气，基于已有的对话上下文，生成 2-3 个简短追问，帮用户把没说清楚的部分补上。
-追问要针对具体缺口，不要泛泛地问"你还有什么想说的"。
-如果对话中用户已经回答过某些问题，不要再问一遍。
-
-【绝对禁止】：
-- 禁止输出任何分析、建议、方向探索或"初步框架"
-- 禁止说"在你思考的同时我先给你分析一下"
-- 只输出追问，不要输出任何其他内容
-
-直接返回追问文本（不要标记、不要JSON），控制在3句话以内。"""
-
-        resp = self.llm.chat(prompt, purpose="followup_generation")
-        return {
-            "question": resp.content.strip(),
-            "missing": missing_parts,
-            "in_tokens": resp.input_tokens,
-            "out_tokens": resp.output_tokens,
-        }
 
     def _parse_intent(self, content: str) -> dict:
         """解析意图识别的JSON输出"""

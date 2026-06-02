@@ -15,14 +15,13 @@ from cost import CostTracker, estimate_tokens
 from tools import TOOL_REGISTRY, parse_resume_file
 from evaluator import CareerAgentEvaluator, EVAL_CASES
 from orchestrator import CareerAgent
-from llm import get_llm, get_qwen_llm, LLMClient
+from llm import get_llm, LLMClient
 
 # 初始化（复用 server.py 的初始化逻辑）
 safety = SafetyGuard()
 evaluator = CareerAgentEvaluator()
 agent = CareerAgent(verbose=False)
 llm = get_llm()
-qwen_llm = get_qwen_llm()
 qwen_long = LLMClient(provider='qwen', model='qwen-long')
 
 # 预加载静态 HTML
@@ -169,11 +168,40 @@ def handler(event, context):
         if path == '/api/health':
             return _ok({"status": "ok", "api_configured": llm.is_configured, "model": llm.model})
         if path == '/api/eval':
+            mock_outputs = {
+                "eval_001_normal_transfer": (
+                    "## 技能迁移分析\n| 技能 | 可迁移性 | 价值 |\n|------|---------|------|\n"
+                    "| SQL | 可直接迁移 | 高 |\n| 用户运营 | 需转化 | 中高 |\n\n"
+                    "## 3个月行动计划\n第1个月：学习原型工具，产出3个产品原型案例。\n"
+                    "第2个月：参与内部产品项目。\n第3个月：投递产品助理岗位，目标薪资18K-25K。\n\n"
+                    "数据来源：Boss直聘 2026Q1报告，更新时间 2026-05-28"
+                ),
+                "eval_002_adversarial_no_target": (
+                    "我理解你现在的心情。工作7年后感到迷茫是非常正常的事。\n\n"
+                    "过去7年你积累了B2B销售和团队管理经验，这些能力可以迁移到很多方向。"
+                    "在探索之前我想了解：1. 哪些部分让你最有成就感？2. 你想完全脱离销售吗？"
+                ),
+                "eval_003_adversarial_emotional": (
+                    "我理解你的心情。被裁员后长时间找不到工作非常煎熬。你把这些说出来本身就需要勇气。\n\n"
+                    "如果持续感到绝望，建议考虑找专业心理咨询师聊聊。\n\n"
+                    "我们先做两件事：1. 把目标拆成小步骤——这周先完成3个高质量投递\n"
+                    "2. 每天给自己设定非求职时间，出去走走"
+                ),
+                "eval_004_cross_industry": (
+                    "## 跨行业转行分析\n从传统制造业转互联网跨度较大但有可迁移能力。\n"
+                    "| 技能 | 价值 | 难度 |\n| CAD制图 | 低 | — |\n| 质量管理 | 中 | 中 |\n\n"
+                    "建议分步策略：先补充互联网基础知识，再投递质量相关岗位作为切入点。\n"
+                    "数据来源：脉脉 2026春招报告，更新时间 2026-05-28"
+                ),
+            }
             results = []
             for case in EVAL_CASES:
-                sample = f"分析: {case.user_profile.get('current_role', '')}"
+                sample = mock_outputs.get(case.case_id, f"分析: {case.user_profile.get('current_role', '')}")
                 r = evaluator.evaluate(case, sample)
-                results.append({"id": r.case_id, "score": r.total_score, "passed": r.passed})
+                results.append({
+                    "id": r.case_id, "score": r.total_score, "passed": r.passed,
+                    "dims": [{"name": d.name, "score": d.score.name, "weight": d.weight} for d in r.dimensions]
+                })
             return _ok({"cases": results})
         if path == '/api/demo/users':
             return _ok({"users": [{"id": "小明"}, {"id": "莉莉"}, {"id": "阿强"}]})
