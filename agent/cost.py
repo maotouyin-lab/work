@@ -10,10 +10,10 @@ from enum import Enum
 
 
 class CostTier(Enum):
-    """Pricing tiers matching Claude Sonnet 4 (2026)"""
-    INPUT_TOKEN = 3.0      # $3 per 1M input tokens
-    OUTPUT_TOKEN = 15.0    # $15 per 1M output tokens
-    EMBEDDING = 0.1        # $0.1 per 1M tokens
+    """Pricing tiers matching DeepSeek (2026): ¥1/1M input, ¥2/1M output"""
+    INPUT_TOKEN = 1.0      # ¥1 per 1M input tokens
+    OUTPUT_TOKEN = 2.0     # ¥2 per 1M output tokens
+    EMBEDDING = 0.1        # ¥0.1 per 1M tokens
 
 
 @dataclass
@@ -43,16 +43,11 @@ class SessionCost:
         return sum(s.output_tokens for s in self.steps)
 
     @property
-    def total_cost_usd(self) -> float:
-        """Calculate total cost in USD"""
+    def total_cost_rmb(self) -> float:
+        """Calculate total cost in RMB (DeepSeek pricing)"""
         input_cost = (self.total_input_tokens / 1_000_000) * CostTier.INPUT_TOKEN.value
         output_cost = (self.total_output_tokens / 1_000_000) * CostTier.OUTPUT_TOKEN.value
-        return round(input_cost + output_cost, 6)
-
-    @property
-    def total_cost_rmb(self) -> float:
-        """Convert to RMB (≈7.2 rate)"""
-        return round(self.total_cost_usd * 7.2, 4)
+        return round(input_cost + output_cost, 4)
 
     @property
     def ai_step_count(self) -> int:
@@ -105,20 +100,20 @@ class CostTracker:
         ]
 
         for step in s.steps:
-            tag = "🤖 AI" if step.uses_ai else "📡 API"
+            tag = "[AI]" if step.uses_ai else "[API]"
             cost = ((step.input_tokens / 1e6) * CostTier.INPUT_TOKEN.value +
                     (step.output_tokens / 1e6) * CostTier.OUTPUT_TOKEN.value)
             lines.append(
                 f"  {tag} | {step.step_name:30s} | "
                 f"in:{step.input_tokens:>6d} out:{step.output_tokens:>5d} | "
-                f"${cost:.6f} | {step.duration_ms:.0f}ms"
+                f"¥{cost:.4f} | {step.duration_ms:.0f}ms"
             )
 
         lines.extend([
             "-" * 50,
             f"  Total Input:  {s.total_input_tokens:>8d} tokens",
             f"  Total Output: {s.total_output_tokens:>8d} tokens",
-            f"  Cost:         ${s.total_cost_usd:.6f} USD  (¥{s.total_cost_rmb:.4f} RMB)",
+            f"  Cost:         ¥{s.total_cost_rmb:.4f} RMB (DeepSeek)",
             "=" * 50,
         ])
         return '\n'.join(lines)

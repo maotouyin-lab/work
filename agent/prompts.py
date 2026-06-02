@@ -153,6 +153,8 @@ def get_skill_transfer_prompt(user_profile: UserProfile, skill_graph_data: dict,
     return f"""
 【任务】分析用户从当前岗位到目标岗位的技能迁移路径。
 
+⚠️ 注意：当前技能图谱和市场数据均为示例数据（demo），由demo_data.py硬编码，非实时API。请在输出中将数据来源标注为「参考数据（示例）」，而非暗示来自真实第三方平台。
+
 【用户档案】
 - 当前岗位: {user_profile.current_role}
 - 行业: {user_profile.industry}
@@ -340,4 +342,7 @@ def get_3month_plan_prompt(user_profile: UserProfile, skill_gaps: str, target: s
 
 ## 第3个月：准备冲刺
 （同上格式）
+
+## 📋 计划跟进说明
+以上计划基于当前信息生成。建议每两周对照「完成标准」列自查进度，遇到卡点可以随时回来聊，我会帮你调整计划。职业规划是一个迭代过程，第一次计划只是起点。
 """

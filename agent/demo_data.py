@@ -67,7 +67,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "深圳", "上海", "杭州"],
         "top_required_skills": ["需求分析", "用户研究", "数据分析", "SQL", "原型设计", "项目管理"],
         "entry_barrier": "中等（接受运营/技术/设计转岗）",
-        "data_source": "Boss直聘 2026Q1报告",
+        "data_source": "[示例] Boss直聘 2026Q1报告",
         "data_updated": "2026-05-28"
     },
     "技术管理/架构师": {
@@ -76,7 +76,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州"],
         "top_required_skills": ["系统架构设计", "技术团队管理", "跨部门协作", "技术规划", "云原生"],
         "entry_barrier": "高（通常需要8年+技术经验+管理经验）",
-        "data_source": "脉脉 2026Q1报告",
+        "data_source": "[示例] 脉脉 2026Q1报告",
         "data_updated": "2026-05-28"
     },
     "AI产品经理": {
@@ -85,7 +85,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州", "广州"],
         "top_required_skills": ["AI技术理解", "大模型应用", "Prompt工程", "数据分析", "产品设计"],
         "entry_barrier": "中高（接受技术/产品/运营转岗，但需AI认知）",
-        "data_source": "脉脉 2026春招报告",
+        "data_source": "[示例] 脉脉 2026春招报告",
         "data_updated": "2026-05-28"
     },
     "运营总监": {
@@ -94,7 +94,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州"],
         "top_required_skills": ["团队管理", "增长策略", "数据驱动决策", "预算管理", "跨部门协调"],
         "entry_barrier": "高（通常需要5年+运营经验+管理经验）",
-        "data_source": "Boss直聘 2026Q1报告",
+        "data_source": "[示例] Boss直聘 2026Q1报告",
         "data_updated": "2026-05-28"
     },
     "数据分析师": {
@@ -103,7 +103,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州", "广州"],
         "top_required_skills": ["SQL", "Python", "数据可视化", "统计学", "业务分析", "Tableau/PowerBI"],
         "entry_barrier": "中低（接受理工科/商科转岗，需数据分析项目经验）",
-        "data_source": "Boss直聘 2026Q1报告",
+        "data_source": "[示例] Boss直聘 2026Q1报告",
         "data_updated": "2026-05-28"
     },
     "前端开发": {
@@ -112,7 +112,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州", "广州"],
         "top_required_skills": ["React/Vue", "TypeScript", "CSS", "Node.js", "工程化"],
         "entry_barrier": "中（接受培训班/自学转行，但竞争激烈）",
-        "data_source": "Boss直聘 2026Q1报告",
+        "data_source": "[示例] Boss直聘 2026Q1报告",
         "data_updated": "2026-05-28"
     },
     "后端开发": {
@@ -121,7 +121,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州", "广州"],
         "top_required_skills": ["Java/Go/Python", "数据库", "微服务", "中间件", "系统设计"],
         "entry_barrier": "中（需计算机基础，接受相关专业转行）",
-        "data_source": "Boss直聘 2026Q1报告",
+        "data_source": "[示例] Boss直聘 2026Q1报告",
         "data_updated": "2026-05-28"
     },
     "AI工程师": {
@@ -130,7 +130,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州"],
         "top_required_skills": ["Python", "PyTorch/TensorFlow", "大模型微调", "RAG", "向量数据库"],
         "entry_barrier": "高（通常需要硕士+相关经验，但需求缺口大）",
-        "data_source": "脉脉 2026春招报告",
+        "data_source": "[示例] 脉脉 2026春招报告",
         "data_updated": "2026-05-28"
     },
     "UI/UX设计师": {
@@ -139,7 +139,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州"],
         "top_required_skills": ["Figma", "用户研究", "交互设计", "设计系统", "可用性测试"],
         "entry_barrier": "中（作品集是关键，接受艺术/心理学等背景转行）",
-        "data_source": "Boss直聘 2026Q1报告",
+        "data_source": "[示例] Boss直聘 2026Q1报告",
         "data_updated": "2026-05-28"
     },
     "测试开发": {
@@ -148,7 +148,7 @@ JOB_MARKET_DATA = {
         "top_cities": ["北京", "上海", "深圳", "杭州"],
         "top_required_skills": ["自动化测试", "Python/Java", "CI/CD", "性能测试", "测试框架搭建"],
         "entry_barrier": "中（接受开发/运维转岗）",
-        "data_source": "Boss直聘 2026Q1报告",
+        "data_source": "[示例] Boss直聘 2026Q1报告",
         "data_updated": "2026-05-28"
     },
 }

@@ -63,10 +63,14 @@ class SafetyGuard:
     # HIGH confidence: explicit fabrication/deception words → direct block
     FABRICATION_HIGH = [
         (r'(编造|虚构|伪造|杜撰|无中生有|凭空).{0,15}(经历|项目|工作|经验|履历|简历)', '编造/虚构经历'),
+        (r'(经历|项目|工作|经验|履历|简历).{0,5}(编造|虚构|伪造|杜撰)', '编造/虚构经历（逆向）'),
         (r'(假装|冒充|伪装).{0,10}(会|懂|做过|掌握|具备)', '假装具备某种能力'),
         (r'(?:没做过|没干过|没接触过|不会).{0,10}(?:说成|写成|包装成|改成).{0,10}(?:做过|会的|懂的)', '把没做过的事写成做过'),
         (r'(?:造假|作弊|欺骗|撒谎|骗).{0,15}(?:简历|面试|经历|项目|背景)', '简历/面试造假'),
+        (r'(?:简历|面试|经历|项目|背景).{0,5}(?:造假|作弊|欺骗)', '简历/面试造假（逆向）'),
         (r'(?:买|办|搞|弄).{0,5}(?:假|伪造).{0,5}(?:学历|证书|文凭|学位)', '学历/证书造假'),
+        # Standalone fabrication keywords at end of string (no target noun needed)
+        (r'(?:编造|虚构|伪造|杜撰|造假|fabricate|fake)\s*$', '编造/虚构暗示（句末）'),
     ]
 
     # LOW confidence: "包装" is legitimate career vocabulary in most contexts.

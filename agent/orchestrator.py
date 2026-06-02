@@ -16,10 +16,11 @@ from demo_data import (
     JOB_MARKET_DATA, SKILL_TRANSFER_MAP,
     JD_PRODUCT_MANAGER, JD_AI_PM
 )
-from safety import SafetyGuard, SafetyLevel
+from safety import SafetyGuard, SafetyLevel, SafetyResult
 from cost import CostTracker, estimate_tokens
 from tools import TOOL_REGISTRY
 from llm import get_llm, get_qwen_llm, LLMResponse, LLMClient
+from badcase import tracker, detect_resume_fabrication, detect_data_hallucination
 from prompts import (
     SAFETY_SYSTEM_PROMPT, ROLE_PROMPT,
     get_profile_extraction_prompt, get_intent_recognition_prompt,
@@ -46,7 +47,7 @@ class AgentResult:
     user_profile: UserProfile
     steps: list[AgentStep]
     final_output: str
-    safety_result: SafetyLevel
+    safety_result: SafetyResult
     cost_summary: dict
     extracted_profile: dict = field(default_factory=dict)  # 从对话中提取的用户画像
 
@@ -77,7 +78,6 @@ class CareerAgent:
           - "skill_transfer": 技能迁移分析
           - "interview_prep": 面试模拟准备
           - "resume_optimize": 简历优化
-          - "full_planning": 完整职业规划
 
         messages: 对话历史 [{"role":"user"|"assistant","content":"..."}]，支持多轮上下文
         message: 单轮消息（兼容旧调用）
@@ -104,8 +104,47 @@ class CareerAgent:
             current_msg = message or ""
             has_history = False
 
+        # ═══════════════════════════════════════
+        # Step -1: 用户输入安全预检（零成本，代码正则，不消耗token）
+        # 在 LLM 调用之前拦截恶意输入，避免浪费 API 配额 + 降低 TOS 风险
+        # ═══════════════════════════════════════
+        input_safety = self.safety.check(current_msg)
+        if input_safety.level == SafetyLevel.BLOCK:
+            block_msg = (
+                "⚠️ 你的请求触发了系统安全护栏。\n\n"
+                "我不能帮你做以下事情：\n"
+                "• 编造/虚构/伪造工作经历或项目经验\n"
+                "• 简历或面试造假\n"
+                "• 提供任何形式的欺骗性建议\n\n"
+                "如果你需要**合法地优化简历**（基于真实经历重组表达），我可以帮你。"
+            )
+            return AgentResult(
+                user_profile=UserProfile(name="用户", current_role="", years_of_experience=0,
+                    industry="", skills=[], education="", salary_range="", target_role=None),
+                steps=[AgentStep(name="输入安全预检", uses_ai=False, input_tokens=0, output_tokens=0,
+                    duration_ms=0, summary=f"用户输入触发代码层拦截: {input_safety.violations[0] if input_safety.violations else ''}")],
+                final_output=block_msg,
+                safety_result=input_safety,
+                cost_summary={"total_steps": 1, "ai_steps": 0, "non_ai_steps": 1,
+                    "input_tokens": 0, "output_tokens": 0, "cost_rmb": 0.0,
+                    "api_configured": self.llm.is_configured, "model": self.llm.model,
+                    "total_duration_ms": int((time.time() - t_start) * 1000)},
+                extracted_profile={}
+            )
+        # 如果有输入安全警告（非拦截级），记录下来
+        if input_safety.warnings:
+            tracker.add(
+                case_type="badcase", category="safety_input_warn", flow=flow,
+                severity="minor", user_input=current_msg[:500],
+                llm_output="",
+                expected_behavior="用户输入应通过安全检查",
+                actual_issue=f"输入安全检查警告: {'; '.join(input_safety.warnings[:3])}",
+                detected_by="safety_check", heuristic_rule="input_pre_check"
+            )
+
         # 简短招呼检测：纯打招呼/问好消息跳过完整流程，返回温暖简短回应
-        greeting_patterns = ['你好', 'hi', 'hello', '嗨', '在吗', '在么', '您好', 'hey', '早上好', '下午好', '晚上好']
+        greeting_patterns = ['你好', 'hi', 'hello', '嗨', '在吗', '在么', '您好', 'hey', '早上好', '下午好', '晚上好',
+                            '嘿', '哈喽', '哟', '嗨喽', 'hola', '早', '晚上好呀', '下午好呀']
         if current_msg and not has_history and flow == "skill_transfer":
             msg_clean = current_msg.strip().lower()
             if any(msg_clean == g or msg_clean.startswith(g) for g in greeting_patterns):
@@ -121,7 +160,7 @@ class CareerAgent:
                     steps=[AgentStep(name="招呼识别", uses_ai=False, input_tokens=0, output_tokens=0,
                         duration_ms=0, summary="识别为简短招呼，返回欢迎语")],
                     final_output=greeting_output,
-                    safety_result=SafetyLevel.PASS,
+                    safety_result=SafetyResult(level=SafetyLevel.PASS),
                     cost_summary={"total_steps": 1, "ai_steps": 0, "non_ai_steps": 1,
                         "input_tokens": 0, "output_tokens": 0, "cost_rmb": 0.0,
                         "api_configured": self.llm.is_configured, "model": self.llm.model,
@@ -199,7 +238,7 @@ class CareerAgent:
             resp = self.llm.chat(intent_prompt, purpose="intent_recognition")
             intent = self._parse_intent(resp.content)
 
-            primary = intent.get("primary", intent.get("primary_intent", flow))
+            primary = intent.get("primary", flow)
             if not user.target_role and primary not in ("interview_prep", "emotional_support"):
                 primary = "career_planning"
 
@@ -354,6 +393,34 @@ class CareerAgent:
                   f"({resp4.input_tokens}+{resp4.output_tokens}, {resp4.duration_ms:.0f}ms, "
                   f"¥{self._calc_cost(resp4.input_tokens, resp4.output_tokens):.4f})")
 
+        # ── Badcase 自动检测（Step 4 输出后） ──
+        current_input = current_msg or (message if not has_history else history_text[-300:])
+        # 简历编造检测
+        if flow == "resume_optimize" and resume_text:
+            findings = detect_resume_fabrication(resume_text, synthesis)
+            for f in findings:
+                tracker.add(
+                    case_type="badcase", category="fabrication", flow=flow,
+                    severity="major", user_input=resume_text[:500],
+                    llm_output=synthesis,
+                    expected_behavior="简历优化只应重组原文，不应编造数字",
+                    actual_issue=f"疑似编造: {f.get('suspicious_value', '')} — {f.get('label', '')}",
+                    detected_by="auto_heuristic", heuristic_rule=f.get("rule", "")
+                )
+        # 数据来源幻觉检测
+        demo_roles = ["产品经理", "技术管理", "AI产品经理", "运营总监", "数据分析师",
+                      "前端开发", "后端开发", "AI工程师", "UI/UX设计师", "测试开发"]
+        data_findings = detect_data_hallucination(synthesis, demo_roles)
+        for f in data_findings:
+            tracker.add(
+                case_type="badcase", category="hallucination", flow=flow,
+                severity="minor", user_input=current_input[:500],
+                llm_output=synthesis,
+                expected_behavior="数据来源应标注为 [示例]",
+                actual_issue=f.get("suspicious_value", ""),
+                detected_by="auto_heuristic", heuristic_rule=f.get("rule", "")
+            )
+
         # ═══════════════════════════════════════
         # Step 5: 安全检查（走LLM + 代码双重校验）
         # ═══════════════════════════════════════
@@ -377,17 +444,37 @@ class CareerAgent:
                 for risk in llm_safety.get("risks", []):
                     if risk not in safety_result.warnings:
                         safety_result.warnings.append(f"[LLM安全审查] {risk}")
+                # ── 记录 LLM 安全检查发现的风险（代码正则漏过的 near-miss） ──
+                tracker.add(
+                    case_type="badcase", category="safety_near_miss", flow=flow,
+                    severity="major", user_input=current_input[:500],
+                    llm_output=synthesis[:1000],
+                    expected_behavior="LLM输出应通过安全检查",
+                    actual_issue=f"LLM安全审查发现风险: {'; '.join(llm_safety.get('risks', []))}",
+                    detected_by="safety_check", heuristic_rule="llm_safety_review"
+                )
 
         # 简历优化模式：追加 AI 生成内容提醒
         if flow == "resume_optimize":
             safety_result.warnings.append("简历经AI优化，所有量化数字和具体成果请以原始简历为准，建议发送前逐条核对")
-        else:
+
+        # 如果安全检查直接拦截（未走 LLM），填充占位 resp5
+        if safety_result.level == SafetyLevel.BLOCK:
             resp5 = LLMResponse(content="blocked", model="local", input_tokens=0, output_tokens=0, duration_ms=0)
+            # ── 记录被拦截的输出 ──
+            tracker.add(
+                case_type="badcase", category="safety_blocked", flow=flow,
+                severity="critical", user_input=current_input[:500],
+                llm_output=synthesis[:1000],
+                expected_behavior="不应触发代码层安全拦截",
+                actual_issue=f"代码层拦截: {'; '.join(safety_result.violations[:3])}",
+                detected_by="safety_check", heuristic_rule="code_regex_block"
+            )
 
         step5 = AgentStep(
             name="内容安全检查", uses_ai=(safety_result.level != SafetyLevel.BLOCK),
-            input_tokens=resp5.input_tokens if hasattr(resp5, 'input_tokens') else 0,
-            output_tokens=resp5.output_tokens if hasattr(resp5, 'output_tokens') else 0,
+            input_tokens=resp5.input_tokens,
+            output_tokens=resp5.output_tokens,
             duration_ms=(time.time() - t5) * 1000,
             summary=f"代码正则 + LLM双重校验：{'✅ 通过' if safety_result.level.value == 'pass' else '⚠️ 警告' if safety_result.level.value == 'warn' else '🚫 拦截'}",
             detail={
@@ -434,7 +521,7 @@ class CareerAgent:
             user_profile=user,
             steps=steps,
             final_output=final_output,
-            safety_result=safety_result.level,
+            safety_result=safety_result,
             cost_summary=cost_summary,
             extracted_profile=extracted_profile
         )

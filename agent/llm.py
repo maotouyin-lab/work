@@ -218,7 +218,7 @@ class LLMClient:
     def _fallback_response(self, purpose: str, user_message: str) -> str:
         """未配置API Key时的降级响应（模拟输出，保证系统可运行）"""
         if purpose == "intent_recognition":
-            return '{"primary_intent": "skill_analysis", "sub_intents": ["career_planning"], "urgency": "medium"}'
+            return '{"primary": "skill_analysis", "intents": ["career_planning"], "urgency": "medium"}'
 
         if purpose == "skill_transfer":
             return f"""[模拟模式] 基于DeepSeek API的技能迁移分析会在这里显示。
