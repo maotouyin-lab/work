@@ -14,6 +14,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 STORAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'badcases.json')
+# FC 函数计算代码目录只读，自动切到 /tmp
+if not os.access(os.path.dirname(STORAGE_FILE), os.W_OK):
+    STORAGE_FILE = '/tmp/badcases.json'
 
 
 @dataclass
